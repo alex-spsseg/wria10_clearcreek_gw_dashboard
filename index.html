@@ -29,6 +29,14 @@
     #well-list li:hover { background: rgba(255,255,255,.05); }
     #well-list li.sel { border-left-color: var(--accent); background: rgba(1,159,196,.10); }
     .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+    .dot.diamond { border-radius: 0; background: #fff; transform: rotate(45deg); width: 8px; height: 8px; }
+    #well-list li.group { cursor: default; padding: 6px 12px; font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
+      color: var(--dim); background: rgba(255,255,255,.03); border-left-color: transparent; }
+    #well-list li.group:hover { background: rgba(255,255,255,.03); }
+    .presets { flex: none; padding: 6px 14px; font-size: 12px; color: var(--dim); border-bottom: 1px solid var(--line); }
+    .presets a { color: var(--accent); cursor: pointer; margin-left: 6px; }
+    .ditch-diamond { width: 14px; height: 14px; background: #fff; border: 2px solid #111; transform: rotate(45deg); box-sizing: border-box; }
+    .ditch-diamond.sel { box-shadow: 0 0 0 3px #ff9f1c; }
     .wname { font-weight: 600; }
     .wlogger { font-size: 11px; color: var(--dim); }
     .info-btn { margin-left: auto; background: none; border: 1px solid var(--line); color: var(--dim);
@@ -39,6 +47,8 @@
     .leaflet-tooltip.well-label { background: transparent; border: none; box-shadow: none; color: #fff; font-weight: 700;
       font-size: 12px; text-shadow: 0 0 3px #000, 0 0 3px #000, 0 0 5px #000; padding: 0; }
     .leaflet-tooltip.well-label::before { display: none; }
+    .fit-control { background: rgba(255,255,255,.95); padding: 5px 9px; font-size: 12px; color: #123; }
+    .fit-control label { cursor: pointer; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
 
     .tabs { flex: none; display: flex; gap: 4px; padding: 6px 10px 0; border-bottom: 1px solid var(--line); }
     .tabs button { background: none; border: none; color: var(--dim); padding: 8px 14px; cursor: pointer;
@@ -64,7 +74,8 @@
     #tip { position: absolute; pointer-events: none; display: none; background: rgba(4,18,31,.95); border: 1px solid var(--line);
       border-radius: 4px; padding: 6px 9px; font-size: 12px; white-space: nowrap; z-index: 5; }
     #tip .d { color: var(--dim); margin-bottom: 3px; }
-    #legend { flex: none; display: flex; flex-wrap: wrap; gap: 6px 14px; justify-content: center; padding: 6px 14px 10px; font-size: 12px; }
+    #legend { flex: none; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 14px 10px; font-size: 12px; }
+    #legend .lg-row { display: flex; flex-wrap: wrap; gap: 4px 14px; justify-content: center; }
     #legend span { display: inline-flex; align-items: center; gap: 6px; }
     #legend i { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
     .empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--dim); }
@@ -75,6 +86,11 @@
     #tab-details td { padding: 3px 14px 3px 0; border-bottom: 1px solid var(--line); }
     #tab-details td:first-child { color: var(--dim); }
     #tab-details a { color: var(--accent); }
+    #tab-details h3 { margin: 6px 0 0; font-size: 14px; }
+    #tab-details table.hd th { text-align: left; font-weight: 600; color: var(--dim); padding: 3px 14px 3px 0; border-bottom: 1px solid var(--line); }
+    .hd-scroll { max-height: 210px; overflow-y: auto; flex: none; }
+    .hd-scroll th { position: sticky; top: 0; background: var(--panel); }
+    #tab-details table.hd td:first-child { color: var(--text); }
     #photo-wrap { flex: 1; min-height: 320px; display: flex; flex-direction: column; gap: 6px; }
     #photo-wrap iframe { flex: 1; min-height: 300px; border: 1px solid var(--line); border-radius: 4px; background: #000; }
     .note { color: var(--dim); font-size: 13px; }
@@ -96,6 +112,7 @@
     <aside class="panel">
       <div class="panel-title"><span>Groundwater Wells</span>
         <span class="links"><a id="sel-all">All</a><a id="sel-none">None</a></span></div>
+      <div class="presets">Presets <a id="sel-ditch" title="Select the wells with RTK surface water readings, plus Nancy's Ditch">Surface water RTK</a></div>
       <ul id="well-list"></ul>
     </aside>
     <section class="panel"><div id="map"></div></section>
@@ -128,14 +145,48 @@
       title: "SPSSEG Clear Creek Groundwater Well Monitoring (2022-2026)",
       wellsCsv: "data/wells_current_status_latest.csv",
       seriesCsv: "data/wse_daily_timeseries_latest.csv",
+      // Nancy's Ditch RTK water surface snapshots (one row per visit: date, wse_ft, source).
+      // Optional: if the file is missing the chart simply shows no ditch markers.
+      ditchCsv: "data/nancys_ditch_rtk.csv",
+      // Surveyed well positions (decimal degrees). These win over the latitude and longitude in the
+      // wells file, so a pipeline export cannot move a well back. Columns: well_id, latitude, longitude.
+      locationsCsv: "data/well_locations.csv",
+      ditchLabel: "Nancy's Ditch (RTK)",
+      // RTK water surface readings of the open channel next to each well (well_id, date, wse_ft).
+      channelCsv: "data/channel_rtk.csv",
+      channelLabel: "Open channel RTK",
+      ditchKey: "nancysditch",              // the ditch row in the wells file (Nancys-Ditch)
+      ditchWells: ["well06", "well09"],     // wells shown in the Nancy's Ditch details table
+      rtkPresetWells: ["well06", "well09", "well10", "well12", "well19"],  // wells picked by the Surface water RTK preset
+      ditchColor: "#ffffff",
       // Where the published 360 tours live (the tours repo on GitHub Pages).
       toursBase: "https://alex-spsseg.github.io/wria10_clearcreek_groundwaterwells/",
       // Wells that share another well's photo (Well-20 sits with Well-02).
       photoOverrides: { well20: "well02" },
+      // Extra map layers for the layer control (top right of the map). Any standard tile
+      // address works, including an ArcGIS REST cached map service: its tile address ends
+      // in MapServer/tile/{z}/{y}/{x}. Add maxNativeZoom if the service stops at a zoom
+      // level below the map's maximum so its tiles are stretched instead of going blank.
+      extraBasemaps: [
+        // { name: "County Orthophoto 2023", url: "https://gis.example.com/arcgis/rest/services/Ortho2023/MapServer/tile/{z}/{y}/{x}",
+        //   attribution: "Example County", maxNativeZoom: 19 }
+      ],
+      // Overlays sit on top of the chosen basemap and can be switched on and off.
+      overlays: [
+        { name: "60% Design (2025)",
+          url: "https://tiles.arcgis.com/tiles/buuvDFFARQiOEbVZ/arcgis/rest/services/CC_60pctDesignWalkthrough_PlanSheetC/MapServer/tile/{z}/{y}/{x}",
+          opacity: 0.7, on: false, attribution: "SPSSEG" },
+        // Pierce County 2020 lidar hillshade. The cache only exists from zoom 14 to 21 over
+        // the Clear Creek area, so minZoom and bounds stop the map asking for blank tiles.
+        { name: "Lidar Hillshade (Pierce 2020)",
+          url: "https://tiles.arcgis.com/tiles/buuvDFFARQiOEbVZ/arcgis/rest/services/clearcreek_Pierce2020_lidarhillshade/MapServer/tile/{z}/{y}/{x}",
+          opacity: 0.6, on: false, minZoom: 14, maxNativeZoom: 21,
+          bounds: [[47.2009, -122.4094], [47.2433, -122.3372]], attribution: "Pierce County / SPSSEG" }
+      ],
       yLabel: "Water Surface Elevation (ft, NAVD88)",
       defaultSelected: 5,
       gapDays: 3,               // a break longer than this leaves a gap in the line
-      sampleData: true          // set to false once the real CSVs are in data/
+      sampleData: false         // set to true to show the SAMPLE DATA badge while testing with made-up files
     };
 
     // Column names are matched case-insensitively against these lists, so the
@@ -145,17 +196,32 @@
         id: ["well_id", "well", "well_name", "name", "id"],
         lat: ["latitude", "lat", "y"],
         lon: ["longitude", "lon", "lng", "long", "x"],
-        logger: ["logger", "logger_type", "instrument", "logger_model", "sensor"],
+        logger: ["sensor_type", "logger", "logger_type", "instrument", "logger_model", "sensor"],
+        site: ["site_location_name", "site_name", "location_name"],
+        ecyId: ["ecy_well_id"],
+        depth: ["well_depth_ft"],
+        daysSince: ["days_since_last_reading"],
         status: ["status", "well_status"],
         lastDate: ["last_reading_date", "last_reading", "last_reading_time", "last_date", "last_reading_datetime"],
-        lastWse: ["last_wse_ft", "last_wse", "latest_wse", "last_wse_ft_navd88", "last_reading_wse"],
+        lastWse: ["last_reading_wse_ft", "last_wse_ft", "last_wse", "latest_wse", "last_wse_ft_navd88", "last_reading_wse"],
         pvc: ["top_pvc_elevation_ft", "top_of_pvc_ft", "top_pvc_elev_ft"],
         ground: ["ground_elevation_ft", "ground_elev_ft"]
+      },
+      locs: { id: ["well_id", "well", "well_name", "name", "id"], lat: ["latitude", "lat"], lon: ["longitude", "lon", "lng"] },
+      channel: {
+        id: ["well_id", "well", "well_name", "name", "id"],
+        date: ["date", "visit_date", "day", "datetime"],
+        wse: ["wse_ft", "rtk_channel_wse", "wse", "rtk_wse"]
+      },
+      ditch: {
+        date: ["date", "visit_date", "day", "datetime"],
+        wse: ["wse_ft", "nancy_rtk_wse", "rtk_wse_ft", "wse", "rtk_wse"]
       },
       series: {
         id: ["well_id", "well", "well_name", "name", "id"],
         date: ["date", "day", "datetime", "timestamp", "date_local"],
-        wse: ["wse_mean_ft", "wse_mean", "mean_wse", "wse_ft_navd88", "wse_ft", "wse", "mean"]
+        wse: ["mean_wse_ft", "wse_mean_ft", "wse_mean", "mean_wse", "wse_ft_navd88", "wse_ft", "wse", "mean"],
+        n: ["n_readings", "n", "count"]
       }
     };
 
@@ -172,6 +238,11 @@
     function prettyName(s) {
       var t = String(s).trim(), m = /^well[\s_\-]*0*(\d+)$/i.exec(t);
       return m ? "Well-" + ("0" + m[1]).slice(-Math.max(2, m[1].length)) : t;
+    }
+    // Text cell: trims, drops surrounding quote marks, and treats R's NA as empty.
+    function text(s) {
+      var t = String(s == null ? "" : s).trim().replace(/^"+|"+$/g, "").trim();
+      return /^(na|nan|null)$/i.test(t) ? "" : t;
     }
     function num(s) { var n = parseFloat(s); return isFinite(n) ? n : null; }
     function parseDate(s) {
@@ -196,7 +267,7 @@
     var fmtDate = d3.timeFormat("%b %d, %Y");
 
     // ---- State --------------------------------------------------------------
-    var state = { wells: [], byKey: {}, series: {}, selected: new Set(), focus: null, xFull: [0, 1], xDomain: null };
+    var state = { wells: [], byKey: {}, series: {}, ditch: [], channel: {}, selected: new Set(), focus: null, xFull: [0, 1], xDomain: null };
     var map, markers = {}, siteIndexPromise = null, detailToken = 0;
 
     function colorOf(key) {
@@ -223,7 +294,9 @@
         if (!key || byKey[key]) return;
         byKey[key] = {
           key: key, name: prettyName(r[wc.id]),
-          logger: wc.logger ? r[wc.logger] : "", status: wc.status ? r[wc.status] : "",
+          logger: wc.logger ? text(r[wc.logger]) : "", status: wc.status ? text(r[wc.status]) : "",
+          site: wc.site ? text(r[wc.site]) : "", ecyId: wc.ecyId ? text(r[wc.ecyId]) : "",
+          depth: wc.depth ? num(r[wc.depth]) : null, daysSince: wc.daysSince ? num(r[wc.daysSince]) : null,
           lat: wc.lat ? num(r[wc.lat]) : null, lon: wc.lon ? num(r[wc.lon]) : null,
           lastDate: wc.lastDate ? parseDate(r[wc.lastDate]) : null, lastWse: wc.lastWse ? num(r[wc.lastWse]) : null,
           pvc: wc.pvc ? num(r[wc.pvc]) : null, ground: wc.ground ? num(r[wc.ground]) : null
@@ -239,12 +312,23 @@
       sRes.data.forEach(function (r) {
         var key = keyOf(r[sc.id]), t = parseDate(r[sc.date]), v = num(r[sc.wse]);
         if (!key || t == null || v == null) return;
-        (raw[key] = raw[key] || []).push({ t: t, v: v });
+        var n = sc.n ? num(r[sc.n]) : null;
+        (raw[key] = raw[key] || []).push({ t: t, v: v, n: n && n > 0 ? n : 1 });
       });
 
       var gapMs = CONFIG.gapDays * 86400000, tMin = Infinity, tMax = -Infinity, series = {};
       Object.keys(raw).forEach(function (key) {
-        var pts = raw[key].sort(function (a, b) { return a.t - b.t; }), line = [];
+        // One point per day. On the day the archive hands over to the live
+        // logger both files hold part of the day, so combine them weighted
+        // by how many readings each has.
+        var sorted = raw[key].sort(function (a, b) { return a.t - b.t; }), pts = [], line = [];
+        sorted.forEach(function (p) {
+          var last = pts[pts.length - 1];
+          if (last && last.t === p.t) {
+            last.v = (last.v * last.n + p.v * p.n) / (last.n + p.n);
+            last.n += p.n;
+          } else { pts.push({ t: p.t, v: p.v, n: p.n }); }
+        });
         pts.forEach(function (p, i) {
           if (i > 0 && p.t - pts[i - 1].t > gapMs) line.push({ t: pts[i - 1].t + 1, v: null });
           line.push(p);
@@ -252,12 +336,15 @@
         if (pts[0].t < tMin) tMin = pts[0].t;
         if (pts[pts.length - 1].t > tMax) tMax = pts[pts.length - 1].t;
         series[key] = { pts: pts, line: line };
-        if (!byKey[key]) byKey[key] = { key: key, name: prettyName(key), logger: "", status: "", lat: null, lon: null,
+        if (!byKey[key]) byKey[key] = { key: key, name: prettyName(key), logger: "", status: "", site: "", ecyId: "", depth: null, daysSince: null, lat: null, lon: null,
                                         lastDate: null, lastWse: null, pvc: null, ground: null };
       });
 
       var wells = Object.keys(byKey).map(function (k) { return byKey[k]; });
-      wells.sort(function (a, b) { return a.name.localeCompare(b.name, undefined, { numeric: true }); });
+      wells.sort(function (a, b) {
+        var ha = series[a.key] ? 0 : 1, hb = series[b.key] ? 0 : 1;
+        return ha - hb || a.name.localeCompare(b.name, undefined, { numeric: true });
+      });
       wells.forEach(function (w) {
         var s = series[w.key];
         if (s) {
@@ -270,21 +357,71 @@
       state.xFull = isFinite(tMin) ? [tMin, tMax] : [0, 1];
     }
 
+    function applyLocations(lRes) {
+      if (!lRes || !lRes.data || !lRes.meta) return;
+      var lc = pickCols(lRes.meta.fields, COLS.locs);
+      if (!lc.id || !lc.lat || !lc.lon) { console.warn("Locations file needs well_id, latitude and longitude."); return; }
+      lRes.data.forEach(function (r) {
+        var w = state.byKey[keyOf(r[lc.id])], la = num(r[lc.lat]), lo = num(r[lc.lon]);
+        if (w && la != null && lo != null) { w.lat = la; w.lon = lo; }
+      });
+    }
+
+    function buildChannel(cRes) {
+      state.channel = {};
+      if (!cRes || !cRes.data || !cRes.meta) return;
+      var cc = pickCols(cRes.meta.fields, COLS.channel);
+      if (!cc.id || !cc.date || !cc.wse) { console.warn("Channel file needs well_id, date and wse_ft columns."); return; }
+      cRes.data.forEach(function (r) {
+        var key = keyOf(r[cc.id]), t = parseDate(r[cc.date]), v = num(r[cc.wse]);
+        if (key && t != null && v != null) (state.channel[key] = state.channel[key] || []).push({ t: t, v: v });
+      });
+      Object.keys(state.channel).forEach(function (k) { state.channel[k].sort(function (a, b) { return a.t - b.t; }); });
+    }
+    function isDitch(w) { return !!w && w.key === CONFIG.ditchKey; }
+
+    function buildDitch(dRes) {
+      state.ditch = [];
+      state.ditchMissing = false;
+      if (!dRes || !dRes.data || !dRes.meta) {
+        state.ditchMissing = !!CONFIG.ditchCsv;
+        if (state.ditchMissing) console.warn("Could not load " + CONFIG.ditchCsv + ". Put it in the data folder beside the other CSV files.");
+        return;
+      }
+      var dc = pickCols(dRes.meta.fields, COLS.ditch);
+      if (!dc.date || !dc.wse) { console.warn("Ditch file needs date and wse_ft columns."); return; }
+      dRes.data.forEach(function (r) {
+        var t = parseDate(r[dc.date]), v = num(r[dc.wse]);
+        if (t != null && v != null) state.ditch.push({ t: t, v: v });
+      });
+      state.ditch.sort(function (a, b) { return a.t - b.t; });
+      state.ditchMissing = !state.ditch.length;
+    }
+
     // ---- Well list ----------------------------------------------------------
     function renderList() {
       var ul = $("well-list");
       ul.innerHTML = "";
-      state.wells.forEach(function (w) {
+      function addRow(w) {
         var li = document.createElement("li");
         li.dataset.key = w.key;
-        li.innerHTML = '<span class="dot" style="background:' + dotColor(w) + '"></span>' +
-          '<div><div class="wname">' + w.name + '</div><div class="wlogger">' + (w.logger || "") + '</div></div>' +
-          '<button class="info-btn" title="Well details and 360 photo">i</button>';
+        var ditch = isDitch(w);
+        li.innerHTML = '<span class="dot' + (ditch ? ' diamond' : '') + '"' + (ditch ? '' : ' style="background:' + dotColor(w) + '"') + '></span>' +
+          '<div><div class="wname">' + w.name + '</div><div class="wlogger">' + [w.site, ditch ? "" : w.logger].filter(Boolean).join(" \u00b7 ") + '</div></div>' +
+          '<button class="info-btn" title="' + (ditch ? 'Ditch details and 360 photo' : 'Well details and 360 photo') + '">i</button>';
         ul.appendChild(li);
-      });
+      }
+      state.wells.filter(function (w) { return !isDitch(w); }).forEach(addRow);
+      var d = state.byKey[CONFIG.ditchKey];
+      if (d) {
+        var g = document.createElement("li");
+        g.className = "group"; g.textContent = "Surface water";
+        ul.appendChild(g);
+        addRow(d);
+      }
       ul.addEventListener("click", function (e) {
         var li = e.target.closest("li");
-        if (!li) return;
+        if (!li || !li.dataset.key) return;
         var key = li.dataset.key;
         if (e.target.closest(".info-btn")) { state.focus = key; switchTab("details"); return; }
         toggle(key);
@@ -304,12 +441,48 @@
       var imagery = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
         { maxZoom: 19, attribution: "Tiles &copy; Esri, Maxar, Earthstar Geographics" });
       topo.addTo(map);
-      L.control.layers({ "Topographic": topo, "Imagery": imagery }, null, { position: "topright" }).addTo(map);
+      function tileFrom(def) {
+        var o = { maxZoom: 22, maxNativeZoom: def.maxNativeZoom || 19,
+                  opacity: def.opacity == null ? 1 : def.opacity, attribution: def.attribution || "" };
+        if (def.minZoom != null) o.minZoom = def.minZoom;
+        if (def.bounds) o.bounds = def.bounds;
+        return L.tileLayer(def.url, o);
+      }
+      var baseLayers = { "Topographic": topo, "Imagery": imagery }, overlayLayers = {};
+      (CONFIG.extraBasemaps || []).forEach(function (d) { baseLayers[d.name] = tileFrom(d); });
+      (CONFIG.overlays || []).forEach(function (d) {
+        var layer = tileFrom(d);
+        overlayLayers[d.name] = layer;
+        if (d.on) layer.addTo(map);
+      });
+      L.control.layers(baseLayers, overlayLayers, { position: "topright" }).addTo(map);
+
+      // "Zoom to selected" keeps the map framed on the highlighted wells. Untick it to pan freely.
+      var FitControl = L.Control.extend({
+        options: { position: "topleft" },
+        onAdd: function () {
+          var box = L.DomUtil.create("div", "leaflet-bar fit-control");
+          box.innerHTML = '<label><input type="checkbox" id="fit-toggle" checked> Zoom to selected</label>';
+          L.DomEvent.disableClickPropagation(box);
+          box.querySelector("input").addEventListener("change", function (e) {
+            autoFit = e.target.checked;
+            if (autoFit) fitToSelection();
+          });
+          return box;
+        }
+      });
+      new FitControl().addTo(map);
       var pts = [];
       state.wells.forEach(function (w) {
         if (w.lat == null || w.lon == null) return;
-        var m = L.circleMarker([w.lat, w.lon], { radius: 8, weight: 1.5, color: "#fff", fillColor: dotColor(w), fillOpacity: 1 });
-        m.bindTooltip(w.name, { permanent: true, direction: "top", offset: [0, -6], className: "well-label" });
+        var ditch = isDitch(w), m;
+        if (ditch) {
+          m = L.marker([w.lat, w.lon], { icon: L.divIcon({ className: "", html: '<div class="ditch-diamond"></div>', iconSize: [14, 14], iconAnchor: [7, 7] }) });
+          m.bindTooltip(w.name, { permanent: true, direction: "right", offset: [10, 0], className: "well-label" });
+        } else {
+          m = L.circleMarker([w.lat, w.lon], { radius: 8, weight: 1.5, color: "#fff", fillColor: dotColor(w), fillOpacity: 1 });
+          m.bindTooltip(w.name, { permanent: true, direction: "top", offset: [0, -6], className: "well-label" });
+        }
         m.on("click", function () { toggle(w.key); });
         m.addTo(map);
         markers[w.key] = m;
@@ -317,9 +490,28 @@
       });
       if (pts.length) map.fitBounds(L.latLngBounds(pts).pad(0.2)); else map.setView([47.22, -122.38], 13);
     }
+    var autoFit = true;
+    function fitToSelection() {
+      if (!map || !autoFit) return;
+      function coords(keys) {
+        return keys.map(function (k) { return state.byKey[k]; })
+          .filter(function (w) { return w && w.lat != null && w.lon != null; })
+          .map(function (w) { return [w.lat, w.lon]; });
+      }
+      var pts = coords(Array.from(state.selected));
+      if (!pts.length) pts = coords(state.wells.map(function (w) { return w.key; }));  // nothing selected: show all
+      if (!pts.length) return;
+      if (pts.length === 1) map.setView(pts[0], Math.max(map.getZoom(), 16));
+      else map.fitBounds(L.latLngBounds(pts), { padding: [45, 45], maxZoom: 17 });
+    }
     function styleMarkers() {
       Object.keys(markers).forEach(function (key) {
         var sel = state.selected.has(key);
+        if (key === CONFIG.ditchKey) {
+          var el = markers[key].getElement && markers[key].getElement();
+          if (el && el.firstChild) el.firstChild.classList.toggle("sel", sel);
+          return;
+        }
         markers[key].setStyle(sel ? { color: colorOf(key), weight: 4, radius: 10 } : { color: "#fff", weight: 1.5, radius: 8 });
         markers[key].setRadius(sel ? 10 : 8);
         if (sel) markers[key].bringToFront();
@@ -327,13 +519,22 @@
     }
 
     // ---- Selection ----------------------------------------------------------
+    // Surface water RTK preset: the wells with open channel RTK readings plus Nancy's Ditch.
+    function ditchPreset() {
+      state.selected.clear();
+      (CONFIG.rtkPresetWells || []).forEach(function (k) { if (state.series[k]) state.selected.add(k); });
+      if (state.byKey[CONFIG.ditchKey]) state.selected.add(CONFIG.ditchKey);
+      state.focus = selectedKeys()[0] || state.focus;
+      refresh();
+    }
     function toggle(key) {
+      if (key === CONFIG.ditchKey && !state.selected.has(key)) { ditchPreset(); return; }
       if (state.selected.has(key)) state.selected.delete(key);
       else { state.selected.add(key); state.focus = key; }
       refresh();
     }
     function refresh() {
-      syncList(); styleMarkers(); drawContext(); drawMain(); drawLegend();
+      syncList(); styleMarkers(); fitToSelection(); drawContext(); drawMain(); drawLegend();
       if ($("tab-details").classList.contains("active")) renderDetails();
     }
 
@@ -393,6 +594,14 @@
       keys.forEach(function (k) {
         state.series[k].pts.forEach(function (p) { if (p.t >= dom[0] && p.t <= dom[1]) { if (p.v < lo) lo = p.v; if (p.v > hi) hi = p.v; } });
       });
+      var ditchPts = state.ditch.filter(function (p) { return p.t >= dom[0] && p.t <= dom[1]; });
+      if (keys.length) ditchPts.forEach(function (p) { if (p.v < lo) lo = p.v; if (p.v > hi) hi = p.v; });
+      var chanPts = [];
+      keys.forEach(function (k) {
+        (state.channel[k] || []).forEach(function (p) {
+          if (p.t >= dom[0] && p.t <= dom[1]) { chanPts.push({ k: k, t: p.t, v: p.v }); if (p.v < lo) lo = p.v; if (p.v > hi) hi = p.v; }
+        });
+      });
       if (!(lo <= hi)) {
         d3.select(wrap).append("div").attr("class", "empty")
           .text(keys.length ? "No readings in this date range" : "Select one or more wells to plot");
@@ -417,6 +626,22 @@
           .attr("stroke", colorOf(k)).attr("stroke-width", 1.6).attr("stroke-linejoin", "round").attr("d", gen2);
       });
 
+      // Open channel RTK next to each well: diamond in the well's colour with a white outline.
+      g.append("g").attr("class", "channel-layer").selectAll("path.chan").data(chanPts).enter().append("path").attr("class", "chan")
+        .attr("d", d3.symbol().type(d3.symbolDiamond).size(300))
+        .attr("transform", function (d) { return "translate(" + x(new Date(d.t)) + "," + y(d.v) + ")"; })
+        .attr("fill", function (d) { return colorOf(d.k); }).attr("stroke", "#fff").attr("stroke-width", 2)
+        .append("title").text(function (d) { return state.byKey[d.k].name + " open channel, RTK surface water, " + fmtDate(new Date(d.t)) + ": " + d.v.toFixed(2) + " ft"; });
+
+      // Nancy's Ditch RTK snapshots: markers only, no line, because these are single visits.
+      if (keys.length) {
+        g.append("g").attr("class", "ditch-layer").selectAll("path.ditch").data(ditchPts).enter().append("path").attr("class", "ditch")
+          .attr("d", d3.symbol().type(d3.symbolDiamond).size(360))
+          .attr("transform", function (d) { return "translate(" + x(new Date(d.t)) + "," + y(d.v) + ")"; })
+          .attr("fill", CONFIG.ditchColor).attr("stroke", "#111").attr("stroke-width", 2)
+          .append("title").text(function (d) { return CONFIG.ditchLabel + " " + fmtDate(new Date(d.t)) + ": " + d.v.toFixed(2) + " ft"; });
+      }
+
       var vline = g.append("line").attr("y1", 0).attr("y2", h).attr("stroke", "rgba(255,255,255,.55)").style("display", "none");
       var bis = d3.bisector(function (p) { return p.t; }).center, tip = $("tip");
       g.append("rect").attr("width", w).attr("height", h).attr("fill", "transparent")
@@ -425,9 +650,22 @@
           keys.forEach(function (k) {
             var pts = state.series[k].pts, i = bis(pts, t), p = pts[i];
             if (p && Math.abs(p.t - t) <= 2 * 86400000) {
-              rows += '<div><span style="color:' + colorOf(k) + '">&#9679;</span> ' + state.byKey[k].name + ': ' + p.v.toFixed(2) + ' ft</div>';
+              rows += '<div><span style="color:' + colorOf(k) + '">&#9679;</span> ' + state.byKey[k].name + ' groundwater: ' + p.v.toFixed(2) + ' ft</div>';
+            }
+            var cp = state.channel[k];
+            if (cp && cp.length) {
+              var c = cp[d3.bisector(function (q) { return q.t; }).center(cp, t)];
+              if (c && Math.abs(c.t - t) <= 2 * 86400000) {
+                rows += '<div><span style="color:' + colorOf(k) + '; font-size:14px">&#9670;</span> ' + state.byKey[k].name + ' open channel (RTK): ' + c.v.toFixed(2) + ' ft</div>';
+              }
             }
           });
+          if (keys.length && state.ditch.length) {
+            var dp = state.ditch[d3.bisector(function (p) { return p.t; }).center(state.ditch, t)];
+            if (dp && Math.abs(dp.t - t) <= 2 * 86400000) {
+              rows += '<div><span style="color:' + CONFIG.ditchColor + '; font-size:15px">&#9670;</span> ' + CONFIG.ditchLabel + ' surface water: ' + dp.v.toFixed(2) + ' ft</div>';
+            }
+          }
           vline.attr("x1", mx).attr("x2", mx).style("display", null);
           if (!rows) { tip.style.display = "none"; return; }
           tip.innerHTML = '<div class="d">' + fmtDate(new Date(t)) + '</div>' + rows;
@@ -444,11 +682,27 @@
     function drawLegend() {
       var box = $("legend");
       box.innerHTML = "";
-      selectedKeys().forEach(function (k) {
-        var s = document.createElement("span");
-        s.innerHTML = '<i style="background:' + colorOf(k) + '"></i>' + state.byKey[k].name;
-        box.appendChild(s);
-      });
+      var keys = selectedKeys();
+      if (!keys.length) return;
+      // Two rows: groundwater logger lines on the first, surface water RTK diamonds on the second.
+      function row() { var r = document.createElement("div"); r.className = "lg-row"; box.appendChild(r); return r; }
+      function add(r, html, dim) {
+        var el = document.createElement("span");
+        if (dim) el.style.color = "var(--dim)";
+        el.innerHTML = html;
+        r.appendChild(el);
+      }
+      var gw = row();
+      add(gw, "Groundwater logger (daily mean)", true);
+      keys.forEach(function (k) { add(gw, '<i style="background:' + colorOf(k) + '"></i>' + state.byKey[k].name); });
+      var hasChan = keys.some(function (k) { return (state.channel[k] || []).length; });
+      if (hasChan || state.ditch.length || state.ditchMissing) {
+        var sw = row();
+        add(sw, "Surface water, RTK (open water)", true);
+        if (hasChan) add(sw, '<span style="color:#9fb6cf; font-size:17px; line-height:1">&#9670;</span>' + CONFIG.channelLabel + ' (colour matches the well)');
+        if (state.ditch.length) add(sw, '<span style="color:' + CONFIG.ditchColor + '; font-size:17px; line-height:1">&#9670;</span>' + CONFIG.ditchLabel);
+        if (state.ditchMissing) add(sw, "Ditch markers need " + CONFIG.ditchCsv, true);
+      }
     }
 
     function setRange(which) {
@@ -483,22 +737,88 @@
       });
     }
 
+    // Shared 360 photo loader (same lookup as wells: newest published site whose ID starts with the key).
+    function loadPhoto(key, name, token) {
+      findPhotoSite(key).then(function (siteId) {
+        if (token !== detailToken) return;
+        var wrap = $("photo-wrap");
+        if (!wrap) return;
+        if (!siteId) { wrap.innerHTML = '<div class="note">No 360 photo has been published for ' + name + ' yet.</div>'; return; }
+        var url = CONFIG.toursBase + "index.html?site=" + encodeURIComponent(siteId);
+        wrap.innerHTML = '<iframe src="' + url + '" allowfullscreen loading="lazy" title="360 photo of ' + name + '"></iframe>' +
+          '<div class="note"><a href="' + url + '" target="_blank" rel="noopener">Open the 360 photo full screen</a> &middot; ' +
+          '<a href="' + CONFIG.toursBase + 'tours.html" target="_blank" rel="noopener">All tours</a></div>';
+      });
+    }
+    function wellValueOn(key, t) {
+      var sr = state.series[key], best = null;
+      if (!sr) return null;
+      sr.pts.forEach(function (p) {
+        var dt = Math.abs(p.t - t);
+        if (dt <= 86400000 && (best == null || dt < best.dt)) best = { dt: dt, v: p.v };
+      });
+      return best ? best.v : null;
+    }
+    // Open channel RTK vs groundwater for one well: same visit dates, difference = groundwater minus surface water.
+    function channelTableHtml(key) {
+      var cp = state.channel[key];
+      if (!cp || !cp.length) return "";
+      var body = cp.slice().reverse().map(function (p) {
+        var v = wellValueOn(key, p.t), df = v == null ? null : v - p.v;
+        return "<tr><td>" + fmtDate(new Date(p.t)) + "</td><td>" + fmt(p.v) + "</td><td>" + (v == null ? "n/a" : fmt(v)) +
+               "</td><td>" + (df == null ? "n/a" : (df > 0 ? "+" : "") + fmt(df)) + "</td></tr>";
+      }).join("");
+      return "<h3>Open channel RTK vs groundwater (ft)</h3>" +
+        '<div class="hd-scroll"><table class="hd"><tr><th>Visit</th><th>Open channel (RTK)</th><th>Groundwater</th><th>Head diff</th></tr>' + body + "</table></div>" +
+        '<div class="note">Head diff = groundwater minus open channel. Positive means groundwater is higher.</div>';
+    }
+    function renderDitchDetails(w, box) {
+      var d = state.ditch, last = d[d.length - 1];
+      var rows = [
+        ["Location", w.site || "n/a"],
+        ["Measurement", "RTK water surface at the confluence and culvert crossing"],
+        ["Latest RTK reading", last ? fmt(last.v) + " ft on " + fmtDate(new Date(last.t)) : "n/a"],
+        ["Visits with a reading", String(d.length)]
+      ].map(function (r) { return "<tr><td>" + r[0] + "</td><td>" + r[1] + "</td></tr>"; }).join("");
+      var wk = (CONFIG.ditchWells || []).filter(function (k) { return state.series[k]; });
+      var head = "<tr><th>Visit</th><th>Ditch (RTK)</th>" + wk.map(function (k) {
+        return "<th>" + state.byKey[k].name + "</th><th>Head diff</th>"; }).join("") + "</tr>";
+      var body = d.slice().reverse().map(function (p) {
+        return "<tr><td>" + fmtDate(new Date(p.t)) + "</td><td>" + fmt(p.v) + "</td>" + wk.map(function (k) {
+          var v = wellValueOn(k, p.t);
+          if (v == null) return "<td>n/a</td><td>n/a</td>";
+          var df = v - p.v;
+          return "<td>" + fmt(v) + "</td><td>" + (df > 0 ? "+" : "") + fmt(df) + "</td>";
+        }).join("") + "</tr>";
+      }).join("");
+      var table = d.length && wk.length
+        ? '<h3>Nancy\'s Ditch RTK vs groundwater (ft)</h3><div class="hd-scroll"><table class="hd">' + head + body + '</table></div>' +
+          '<div class="note">Head diff = groundwater minus ditch. Positive means groundwater is higher.</div>'
+        : '<div class="note">No ditch RTK readings loaded.</div>';
+      box.innerHTML = "<h2>" + w.name + "</h2><table>" + rows + "</table>" + table +
+        '<div id="photo-wrap"><div class="note">Looking for the 360 photo...</div></div>';
+      loadPhoto(w.key, w.name, ++detailToken);
+    }
+
     function renderDetails() {
       var box = $("tab-details");
       var key = state.focus || selectedKeys()[0] || (state.wells[0] && state.wells[0].key);
       var w = state.byKey[key];
       if (!w) { box.innerHTML = '<div class="note">Select a well.</div>'; return; }
+      if (isDitch(w)) { renderDitchDetails(w, box); return; }
       var s = state.series[key], pts = s ? s.pts : [], lo = null, hi = null;
       pts.forEach(function (p) { if (lo == null || p.v < lo) lo = p.v; if (hi == null || p.v > hi) hi = p.v; });
       var rows = [
+        ["Location", w.site || "n/a"],
         ["Logger", w.logger || "n/a"],
+        ["Well depth", w.depth == null ? "n/a" : fmt(w.depth, 0) + " ft"],
         ["Latest reading", w.lastWse == null ? "n/a" : fmt(w.lastWse) + " ft" + (w.lastDate ? " on " + fmtDate(new Date(w.lastDate)) : "")],
         ["Period of record", pts.length ? fmtDate(new Date(pts[0].t)) + " to " + fmtDate(new Date(pts[pts.length - 1].t)) : "n/a"],
         ["Range (daily mean)", lo == null ? "n/a" : fmt(lo) + " to " + fmt(hi) + " ft"],
         ["Top of PVC", w.pvc == null ? "n/a" : fmt(w.pvc) + " ft"],
         ["Ground elevation", w.ground == null ? "n/a" : fmt(w.ground) + " ft"]
       ].map(function (r) { return "<tr><td>" + r[0] + "</td><td>" + r[1] + "</td></tr>"; }).join("");
-      box.innerHTML = "<h2>" + w.name + "</h2><table>" + rows + '</table><div id="photo-wrap"><div class="note">Looking for the 360 photo...</div></div>';
+      box.innerHTML = "<h2>" + w.name + "</h2><table>" + rows + "</table>" + channelTableHtml(key) + '<div id="photo-wrap"><div class="note">Looking for the 360 photo...</div></div>';
 
       var token = ++detailToken;
       findPhotoSite(key).then(function (siteId) {
@@ -523,8 +843,12 @@
       if (name === "ts") { drawContext(); drawMain(); } else { renderDetails(); }
     }
 
-    function start(wRes, sRes) {
+    function start(wRes, sRes, dRes, lRes, cRes) {
       buildData(wRes, sRes);
+      buildChannel(cRes);
+      applyLocations(lRes);
+      if (state.byKey[CONFIG.ditchKey]) state.byKey[CONFIG.ditchKey].name = "Nancy's Ditch";
+      buildDitch(dRes);
       $("title").textContent = CONFIG.title;
       document.title = CONFIG.title;
       if (CONFIG.sampleData) $("badge").style.display = "";
@@ -541,6 +865,7 @@
       $("sel-all").addEventListener("click", function () {
         state.wells.forEach(function (w) { if (state.series[w.key]) state.selected.add(w.key); }); refresh();
       });
+      $("sel-ditch").addEventListener("click", ditchPreset);
       $("sel-none").addEventListener("click", function () { state.selected.clear(); refresh(); });
 
       var pending = false;
@@ -558,8 +883,11 @@
       refresh();
     }
 
-    Promise.all([loadCsv(CONFIG.wellsCsv), loadCsv(CONFIG.seriesCsv)])
-      .then(function (r) { start(r[0], r[1]); })
+    Promise.all([loadCsv(CONFIG.wellsCsv), loadCsv(CONFIG.seriesCsv),
+                 CONFIG.ditchCsv ? loadCsv(CONFIG.ditchCsv).catch(function () { return null; }) : Promise.resolve(null),
+                 CONFIG.locationsCsv ? loadCsv(CONFIG.locationsCsv).catch(function () { return null; }) : Promise.resolve(null),
+                 CONFIG.channelCsv ? loadCsv(CONFIG.channelCsv).catch(function () { return null; }) : Promise.resolve(null)])
+      .then(function (r) { start(r[0], r[1], r[2], r[3], r[4]); })
       .catch(function (e) { console.error(e); showError(String(e.message || e)); });
   })();
   </script>

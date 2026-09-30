@@ -1,0 +1,20 @@
+well_id,date,wse_ft,source
+Well-06,2026-04-10,10.428,Survey123 rtk_channel_wse
+Well-06,2026-07-09,11.504,Survey123 rtk_channel_wse
+Well-06,2026-09-24,11.477,Survey123 rtk_channel_wse
+Well-09,2026-02-02,12.24,Survey123 rtk_channel_wse
+Well-09,2026-04-10,10.744,Survey123 rtk_channel_wse
+Well-09,2026-07-09,11.557,Survey123 rtk_channel_wse
+Well-09,2026-09-24,11.642,Survey123 rtk_channel_wse
+Well-10,2026-02-02,13.581,Survey123 rtk_channel_wse
+Well-10,2026-04-10,12.289,Survey123 rtk_channel_wse
+Well-10,2026-07-09,13.101,Survey123 rtk_channel_wse
+Well-10,2026-09-24,13.649,Survey123 rtk_channel_wse
+Well-12,2026-02-02,13.747,Survey123 rtk_channel_wse
+Well-12,2026-04-10,12.834,Survey123 rtk_channel_wse
+Well-12,2026-07-09,13.329,Survey123 rtk_channel_wse
+Well-12,2026-09-24,13.839,Survey123 rtk_channel_wse
+Well-19,2026-02-02,10.745,Survey123 rtk_channel_wse
+Well-19,2026-04-10,8.712,Survey123 rtk_channel_wse
+Well-19,2026-07-09,8.7,Survey123 rtk_channel_wse
+Well-19,2026-09-24,8.937,Survey123 rtk_channel_wse

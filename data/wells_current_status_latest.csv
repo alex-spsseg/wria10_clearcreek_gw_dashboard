@@ -1,15 +1,16 @@
-well_id,logger,status,latitude,longitude,last_reading_date,last_wse_ft,top_pvc_elevation_ft,ground_elevation_ft
-Well-01,Solinst LevelLogger 5,Active,47.233966,-122.391294,2026-09-24,9.68,12.78,10.08
-Well-02,Solinst LTC5,Active,47.230578,-122.388402,2026-09-24,9.18,12.48,9.78
-Well-03,Solinst LevelLogger 5,Active,47.232434,-122.386829,2026-09-24,9.44,12.94,10.24
-Well-06,Solinst LevelLogger 5,Active,47.221844,-122.378909,2026-09-24,9.23,12.33,9.63
-Well-08,Solinst LevelLogger 5,Active,47.224836,-122.368992,2026-09-24,9.25,12.55,9.85
-Well-09,Solinst LevelLogger 5,Active,47.220128,-122.375127,2026-09-24,12.19,15.69,12.99
-Well-10,Solinst LevelLogger 5,Active,47.216191,-122.367506,2026-09-24,12.35,15.45,12.75
-Well-11,Solinst LevelLogger 5,Active,47.2183,-122.365774,2026-09-24,12.13,15.43,12.73
-Well-12,Solinst LevelLogger 5,Active,47.214737,-122.365344,2026-09-24,12.0,15.5,12.8
-Well-14,Solinst LevelLogger 5,Active,47.217243,-122.359496,2026-09-24,12.11,15.21,12.51
-Well-16,Solinst LevelLogger 5,Active,47.221914,-122.371966,2026-09-24,9.74,13.04,10.34
-Well-17,Solinst LevelLogger 5,Active,47.220579,-122.361609,2026-09-24,9.46,12.96,10.26
-Well-19,Solinst LevelLogger 5,Active,47.229098,-122.384495,2026-09-24,9.35,12.45,9.75
-Well-20,Solinst LTC5,Active,47.23073,-122.38825,2026-09-24,9.21,12.51,9.81
+well_id,site_location_name,ecy_well_id,sensor_type,latitude,longitude,ground_elevation_ft,top_pvc_elevation_ft,well_depth_ft,last_reading_date,last_reading_wse_ft,days_since_last_reading,status,photo_360_url
+Well-01,30th Street,386,Solinst LevelLogger 5,47.233962,-122.391306,15.817,19.652,20,2026-09-24,6.345035580957337,6,Stale,https://alex-spsseg.github.io/wria10_clearcreek_groundwaterwells/index.html?site=well01
+Well-02,"""On the left""",NA,Solinst LTC5,47.23054848,-122.3883795,15.647,19.633,NA,2026-09-24,6.490261379441829,6,Stale,https://alex-spsseg.github.io/wria10_clearcreek_groundwaterwells/index.html?site=well02
+Well-03,31st Street,382,Solinst LevelLogger 5,47.232413,-122.386761,13.229,16.537,20,2026-09-24,6.568548406831493,6,Stale,https://alex-spsseg.github.io/wria10_clearcreek_groundwaterwells/index.html?site=well03
+Well-06,Squally,393,Solinst LevelLogger 5,47.221871,-122.378919,11.18,15.473,7,2026-09-24,11.034282490027392,6,Stale,https://alex-spsseg.github.io/wria10_clearcreek_groundwaterwells/index.html?site=well06
+Well-09,Clear Culvert,342,Solinst LevelLogger 5,47.220113,-122.375184,12.563,15.031,20,2026-09-24,11.536644035907386,6,Stale,https://alex-spsseg.github.io/wria10_clearcreek_groundwaterwells/index.html?site=well09
+Well-10,T-37,391,Solinst LevelLogger 5,47.216175,-122.367451,16.509,19.609,20,2026-09-24,14.971341006159616,6,Stale,https://alex-spsseg.github.io/wria10_clearcreek_groundwaterwells/index.html?site=well10
+Well-11,Culdesac,392,Solinst LevelLogger 5,47.21828,-122.365809,13.166,16.719,20,2026-07-09,11.778898038179019,83,Stale,https://alex-spsseg.github.io/wria10_clearcreek_groundwaterwells/index.html?site=well11
+Well-12,Barslaag,390,Solinst LevelLogger 5,47.214754,-122.365267,15.224,18.604,20,2026-09-24,15.039901922412067,6,Stale,https://alex-spsseg.github.io/wria10_clearcreek_groundwaterwells/index.html?site=well12
+Well-14,Gardiner,388,Solinst LevelLogger 5,47.217222,-122.359561,16.929,20.687,20,2026-09-24,10.15292855844039,6,Stale,https://alex-spsseg.github.io/wria10_clearcreek_groundwaterwells/index.html?site=well14
+Well-16,Early Bird Farm,387,Solinst LevelLogger 5,47.221904,-122.371945,14.007,17.667,20,2026-09-24,12.49208303064615,6,Stale,https://alex-spsseg.github.io/wria10_clearcreek_groundwaterwells/index.html?site=well16
+Well-17,Zestful,394,Solinst LevelLogger 5,47.22057743,-122.3615981,16.435,20.15,20,2026-09-24,9.949396286354148,6,Stale,https://alex-spsseg.github.io/wria10_clearcreek_groundwaterwells/index.html?site=well17
+Well-19,DS Gay Road,385,Solinst LevelLogger 5,47.229129,-122.38455,17.994,21.727,14,2026-09-24,13.02084059343616,6,Stale,https://alex-spsseg.github.io/wria10_clearcreek_groundwaterwells/index.html?site=well19
+Well-08,Wild Hare,389,Solinst LevelLogger 5,47.22487415,-122.3694722,17.116,20.353,20,2026-09-24,8.069333193107902,6,Stale,https://alex-spsseg.github.io/wria10_clearcreek_groundwaterwells/index.html?site=well08
+Well-20,"""On the right""",NA,Solinst LTC5,47.23055343,-122.388435,15.505,19.586,NA,2026-09-24,7.711655323833675,6,Stale,https://alex-spsseg.github.io/wria10_clearcreek_groundwaterwells/index.html?site=well02
+Nancys-Ditch,Nancys Ditch Crossing,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,No data,NA
