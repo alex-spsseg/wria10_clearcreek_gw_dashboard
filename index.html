@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Clear Creek Groundwater Well Monitoring</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+  <style>
+    :root { --bg: #04121f; --panel: #0a2038; --line: #12406a; --text: #e7eef7; --dim: #93a9c2; --accent: #019fc4; }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; background: var(--bg); color: var(--text);
+      font-family: "Segoe UI", Roboto, -apple-system, sans-serif; }
+    body { display: flex; flex-direction: column; }
+    header { flex: none; display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--line); }
+    h1 { font-size: 20px; font-weight: 600; margin: 0; }
+    .asof { margin-left: auto; font-size: 13px; color: var(--dim); }
+    .badge { font-size: 11px; font-weight: 700; letter-spacing: .06em; color: #04121f; background: #ffd23f;
+      padding: 3px 8px; border-radius: 10px; }
+    main { flex: 1; min-height: 0; display: grid; grid-template-columns: 270px minmax(280px, 34%) 1fr; gap: 10px; padding: 10px; }
+    .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; min-height: 0;
+      display: flex; flex-direction: column; overflow: hidden; }
+    .panel-title { flex: none; display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 14px; font-size: 16px; border-bottom: 1px solid var(--line); }
+    .panel-title .links a { font-size: 12px; color: var(--accent); cursor: pointer; margin-left: 10px; }
+
+    #well-list { list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1; }
+    #well-list li { display: flex; align-items: center; gap: 8px; padding: 10px 12px; cursor: pointer;
+      border-bottom: 1px solid var(--line); border-left: 4px solid transparent; }
+    #well-list li:hover { background: rgba(255,255,255,.05); }
+    #well-list li.sel { border-left-color: var(--accent); background: rgba(1,159,196,.10); }
+    .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+    .wname { font-weight: 600; }
+    .wlogger { font-size: 11px; color: var(--dim); }
+    .info-btn { margin-left: auto; background: none; border: 1px solid var(--line); color: var(--dim);
+      border-radius: 50%; width: 22px; height: 22px; cursor: pointer; font-size: 12px; line-height: 1; }
+    .info-btn:hover { color: #fff; border-color: var(--accent); }
+
+    #map { flex: 1; min-height: 240px; background: #0e1b2b; }
+    .leaflet-tooltip.well-label { background: transparent; border: none; box-shadow: none; color: #fff; font-weight: 700;
+      font-size: 12px; text-shadow: 0 0 3px #000, 0 0 3px #000, 0 0 5px #000; padding: 0; }
+    .leaflet-tooltip.well-label::before { display: none; }
+
+    .tabs { flex: none; display: flex; gap: 4px; padding: 6px 10px 0; border-bottom: 1px solid var(--line); }
+    .tabs button { background: none; border: none; color: var(--dim); padding: 8px 14px; cursor: pointer;
+      font-size: 14px; border-bottom: 2px solid transparent; }
+    .tabs button.active { color: #fff; border-bottom-color: var(--accent); }
+    .tab { display: none; flex: 1; min-height: 0; flex-direction: column; }
+    .tab.active { display: flex; }
+
+    .toolbar { flex: none; display: flex; align-items: center; gap: 6px; padding: 8px 14px 0; font-size: 12px; color: var(--dim); }
+    .toolbar button { background: #0f2c4d; border: 1px solid var(--line); color: var(--text); border-radius: 3px;
+      padding: 3px 10px; cursor: pointer; font-size: 12px; }
+    .toolbar button:hover { border-color: var(--accent); }
+    #ctx-wrap { flex: none; height: 56px; padding: 0 0; }
+    #ctx { width: 100%; height: 100%; display: block; }
+    #chart-wrap { flex: 1; min-height: 0; position: relative; }
+    #chart { width: 100%; height: 100%; display: block; }
+    #chart .grid line { stroke: rgba(255,255,255,.08); }
+    #chart .grid path { display: none; }
+    .axis path, .axis line { stroke: #4b6685; }
+    .axis text { fill: #b7c8dc; font-size: 11px; }
+    .ylabel { fill: #b7c8dc; font-size: 12px; }
+    #ctx .brush .selection { fill: rgba(1,159,196,.25); stroke: var(--accent); }
+    #tip { position: absolute; pointer-events: none; display: none; background: rgba(4,18,31,.95); border: 1px solid var(--line);
+      border-radius: 4px; padding: 6px 9px; font-size: 12px; white-space: nowrap; z-index: 5; }
+    #tip .d { color: var(--dim); margin-bottom: 3px; }
+    #legend { flex: none; display: flex; flex-wrap: wrap; gap: 6px 14px; justify-content: center; padding: 6px 14px 10px; font-size: 12px; }
+    #legend span { display: inline-flex; align-items: center; gap: 6px; }
+    #legend i { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+    .empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--dim); }
+
+    #tab-details { padding: 14px; overflow-y: auto; gap: 12px; }
+    #tab-details h2 { margin: 0; font-size: 18px; }
+    #tab-details table { border-collapse: collapse; font-size: 13px; }
+    #tab-details td { padding: 3px 14px 3px 0; border-bottom: 1px solid var(--line); }
+    #tab-details td:first-child { color: var(--dim); }
+    #tab-details a { color: var(--accent); }
+    #photo-wrap { flex: 1; min-height: 320px; display: flex; flex-direction: column; gap: 6px; }
+    #photo-wrap iframe { flex: 1; min-height: 300px; border: 1px solid var(--line); border-radius: 4px; background: #000; }
+    .note { color: var(--dim); font-size: 13px; }
+    #error { display: none; margin: 10px; padding: 10px 14px; background: #4a1620; border: 1px solid #a33; border-radius: 4px; font-size: 13px; }
+
+    @media (max-width: 1000px) {
+      main { grid-template-columns: 1fr; grid-template-rows: 220px 340px minmax(460px, auto); overflow-y: auto; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1 id="title">Groundwater Well Monitoring</h1>
+    <span id="badge" class="badge" style="display:none;">SAMPLE DATA</span>
+    <span id="asof" class="asof"></span>
+  </header>
+  <div id="error"></div>
+  <main>
+    <aside class="panel">
+      <div class="panel-title"><span>Groundwater Wells</span>
+        <span class="links"><a id="sel-all">All</a><a id="sel-none">None</a></span></div>
+      <ul id="well-list"></ul>
+    </aside>
+    <section class="panel"><div id="map"></div></section>
+    <section class="panel">
+      <div class="tabs">
+        <button data-tab="ts" class="active">Time Series</button>
+        <button data-tab="details">Well Details</button>
+      </div>
+      <div id="tab-ts" class="tab active">
+        <div class="toolbar"><span>Range:</span>
+          <button data-range="all">All</button><button data-range="365">1 year</button><button data-range="90">90 days</button>
+          <span style="margin-left:auto">Drag the strip to zoom</span></div>
+        <div id="ctx-wrap"><svg id="ctx"></svg></div>
+        <div id="chart-wrap"><svg id="chart"></svg><div id="tip"></div></div>
+        <div id="legend"></div>
+      </div>
+      <div id="tab-details" class="tab"></div>
+    </section>
+  </main>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <script>
+  (function () {
+    "use strict";
+
+    // ---- Settings you may want to change -----------------------------------
+    var CONFIG = {
+      title: "SPSSEG Clear Creek Groundwater Well Monitoring (2022-2026)",
+      wellsCsv: "data/wells_current_status_latest.csv",
+      seriesCsv: "data/wse_daily_timeseries_latest.csv",
+      // Where the published 360 tours live (the tours repo on GitHub Pages).
+      toursBase: "https://alex-spsseg.github.io/wria10_clearcreek_groundwaterwells/",
+      // Wells that share another well's photo (Well-20 sits with Well-02).
+      photoOverrides: { well20: "well02" },
+      yLabel: "Water Surface Elevation (ft, NAVD88)",
+      defaultSelected: 5,
+      gapDays: 3,               // a break longer than this leaves a gap in the line
+      sampleData: true          // set to false once the real CSVs are in data/
+    };
+
+    // Column names are matched case-insensitively against these lists, so the
+    // pipeline exports can be dropped in without renaming anything.
+    var COLS = {
+      wells: {
+        id: ["well_id", "well", "well_name", "name", "id"],
+        lat: ["latitude", "lat", "y"],
+        lon: ["longitude", "lon", "lng", "long", "x"],
+        logger: ["logger", "logger_type", "instrument", "logger_model", "sensor"],
+        status: ["status", "well_status"],
+        lastDate: ["last_reading_date", "last_reading", "last_reading_time", "last_date", "last_reading_datetime"],
+        lastWse: ["last_wse_ft", "last_wse", "latest_wse", "last_wse_ft_navd88", "last_reading_wse"],
+        pvc: ["top_pvc_elevation_ft", "top_of_pvc_ft", "top_pvc_elev_ft"],
+        ground: ["ground_elevation_ft", "ground_elev_ft"]
+      },
+      series: {
+        id: ["well_id", "well", "well_name", "name", "id"],
+        date: ["date", "day", "datetime", "timestamp", "date_local"],
+        wse: ["wse_mean_ft", "wse_mean", "mean_wse", "wse_ft_navd88", "wse_ft", "wse", "mean"]
+      }
+    };
+
+    var PALETTE = ["#1ca9e6", "#7b6ef6", "#ffe14a", "#c8873c", "#9aa0a6", "#5fd18b", "#f26bb5",
+                   "#4dd0e1", "#ff7043", "#b0e05a", "#e6a1ff", "#ffb74d", "#80cbc4", "#f06292"];
+
+    // ---- Small helpers ------------------------------------------------------
+    function $(id) { return document.getElementById(id); }
+    function keyOf(s) {
+      var k = String(s == null ? "" : s).trim().toLowerCase().replace(/[\s_\-]+/g, "");
+      var m = /^well0*(\d+)$/.exec(k);
+      return m ? "well" + ("0" + m[1]).slice(-Math.max(2, m[1].length)) : k;
+    }
+    function prettyName(s) {
+      var t = String(s).trim(), m = /^well[\s_\-]*0*(\d+)$/i.exec(t);
+      return m ? "Well-" + ("0" + m[1]).slice(-Math.max(2, m[1].length)) : t;
+    }
+    function num(s) { var n = parseFloat(s); return isFinite(n) ? n : null; }
+    function parseDate(s) {
+      if (!s) return null;
+      var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s).trim());
+      if (m) return new Date(+m[1], +m[2] - 1, +m[3]).getTime();
+      var t = new Date(s).getTime();
+      return isFinite(t) ? t : null;
+    }
+    function pickCols(fields, spec) {
+      var norm = fields.map(function (f) { return { raw: f, k: f.trim().toLowerCase().replace(/[\s\-]+/g, "_") }; });
+      var out = {};
+      Object.keys(spec).forEach(function (name) {
+        var hit = null;
+        spec[name].some(function (a) { hit = norm.filter(function (f) { return f.k === a; })[0] || null; return hit; });
+        out[name] = hit ? hit.raw : null;
+      });
+      return out;
+    }
+    function showError(msg) { var e = $("error"); e.style.display = "block"; e.textContent = msg; }
+    function fmt(v, d) { return v == null ? "n/a" : v.toFixed(d == null ? 2 : d); }
+    var fmtDate = d3.timeFormat("%b %d, %Y");
+
+    // ---- State --------------------------------------------------------------
+    var state = { wells: [], byKey: {}, series: {}, selected: new Set(), focus: null, xFull: [0, 1], xDomain: null };
+    var map, markers = {}, siteIndexPromise = null, detailToken = 0;
+
+    function colorOf(key) {
+      var i = state.wells.findIndex(function (w) { return w.key === key; });
+      return PALETTE[(i < 0 ? 0 : i) % PALETTE.length];
+    }
+    function isLtc(w) { return /ltc/i.test(w.logger || ""); }
+    function dotColor(w) { return isLtc(w) ? "#ffd23f" : "#e63946"; }
+
+    // ---- Loading ------------------------------------------------------------
+    function loadCsv(url) {
+      return fetch(url, { cache: "no-cache" }).then(function (r) {
+        if (!r.ok) throw new Error(url + " could not be loaded (" + r.status + ")");
+        return r.text();
+      }).then(function (text) { return Papa.parse(text, { header: true, skipEmptyLines: true }); });
+    }
+
+    function buildData(wRes, sRes) {
+      var wc = pickCols(wRes.meta.fields, COLS.wells);
+      if (!wc.id) throw new Error("No well ID column found in the wells file. Columns found: " + wRes.meta.fields.join(", "));
+      var byKey = {};
+      wRes.data.forEach(function (r) {
+        var key = keyOf(r[wc.id]);
+        if (!key || byKey[key]) return;
+        byKey[key] = {
+          key: key, name: prettyName(r[wc.id]),
+          logger: wc.logger ? r[wc.logger] : "", status: wc.status ? r[wc.status] : "",
+          lat: wc.lat ? num(r[wc.lat]) : null, lon: wc.lon ? num(r[wc.lon]) : null,
+          lastDate: wc.lastDate ? parseDate(r[wc.lastDate]) : null, lastWse: wc.lastWse ? num(r[wc.lastWse]) : null,
+          pvc: wc.pvc ? num(r[wc.pvc]) : null, ground: wc.ground ? num(r[wc.ground]) : null
+        };
+      });
+
+      var sc = pickCols(sRes.meta.fields, COLS.series);
+      if (!sc.id || !sc.date || !sc.wse) {
+        throw new Error("The time series file needs a well ID, a date and a water level column. Columns found: " +
+                        sRes.meta.fields.join(", "));
+      }
+      var raw = {};
+      sRes.data.forEach(function (r) {
+        var key = keyOf(r[sc.id]), t = parseDate(r[sc.date]), v = num(r[sc.wse]);
+        if (!key || t == null || v == null) return;
+        (raw[key] = raw[key] || []).push({ t: t, v: v });
+      });
+
+      var gapMs = CONFIG.gapDays * 86400000, tMin = Infinity, tMax = -Infinity, series = {};
+      Object.keys(raw).forEach(function (key) {
+        var pts = raw[key].sort(function (a, b) { return a.t - b.t; }), line = [];
+        pts.forEach(function (p, i) {
+          if (i > 0 && p.t - pts[i - 1].t > gapMs) line.push({ t: pts[i - 1].t + 1, v: null });
+          line.push(p);
+        });
+        if (pts[0].t < tMin) tMin = pts[0].t;
+        if (pts[pts.length - 1].t > tMax) tMax = pts[pts.length - 1].t;
+        series[key] = { pts: pts, line: line };
+        if (!byKey[key]) byKey[key] = { key: key, name: prettyName(key), logger: "", status: "", lat: null, lon: null,
+                                        lastDate: null, lastWse: null, pvc: null, ground: null };
+      });
+
+      var wells = Object.keys(byKey).map(function (k) { return byKey[k]; });
+      wells.sort(function (a, b) { return a.name.localeCompare(b.name, undefined, { numeric: true }); });
+      wells.forEach(function (w) {
+        var s = series[w.key];
+        if (s) {
+          var last = s.pts[s.pts.length - 1];
+          if (w.lastDate == null) w.lastDate = last.t;
+          if (w.lastWse == null) w.lastWse = last.v;
+        }
+      });
+      state.wells = wells; state.byKey = byKey; state.series = series;
+      state.xFull = isFinite(tMin) ? [tMin, tMax] : [0, 1];
+    }
+
+    // ---- Well list ----------------------------------------------------------
+    function renderList() {
+      var ul = $("well-list");
+      ul.innerHTML = "";
+      state.wells.forEach(function (w) {
+        var li = document.createElement("li");
+        li.dataset.key = w.key;
+        li.innerHTML = '<span class="dot" style="background:' + dotColor(w) + '"></span>' +
+          '<div><div class="wname">' + w.name + '</div><div class="wlogger">' + (w.logger || "") + '</div></div>' +
+          '<button class="info-btn" title="Well details and 360 photo">i</button>';
+        ul.appendChild(li);
+      });
+      ul.addEventListener("click", function (e) {
+        var li = e.target.closest("li");
+        if (!li) return;
+        var key = li.dataset.key;
+        if (e.target.closest(".info-btn")) { state.focus = key; switchTab("details"); return; }
+        toggle(key);
+      });
+    }
+    function syncList() {
+      Array.prototype.forEach.call($("well-list").children, function (li) {
+        li.classList.toggle("sel", state.selected.has(li.dataset.key));
+      });
+    }
+
+    // ---- Map ----------------------------------------------------------------
+    function buildMap() {
+      map = L.map("map", { preferCanvas: true });
+      var topo = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
+        { maxZoom: 19, attribution: "Tiles &copy; Esri" });
+      var imagery = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        { maxZoom: 19, attribution: "Tiles &copy; Esri, Maxar, Earthstar Geographics" });
+      topo.addTo(map);
+      L.control.layers({ "Topographic": topo, "Imagery": imagery }, null, { position: "topright" }).addTo(map);
+      var pts = [];
+      state.wells.forEach(function (w) {
+        if (w.lat == null || w.lon == null) return;
+        var m = L.circleMarker([w.lat, w.lon], { radius: 8, weight: 1.5, color: "#fff", fillColor: dotColor(w), fillOpacity: 1 });
+        m.bindTooltip(w.name, { permanent: true, direction: "top", offset: [0, -6], className: "well-label" });
+        m.on("click", function () { toggle(w.key); });
+        m.addTo(map);
+        markers[w.key] = m;
+        pts.push([w.lat, w.lon]);
+      });
+      if (pts.length) map.fitBounds(L.latLngBounds(pts).pad(0.2)); else map.setView([47.22, -122.38], 13);
+    }
+    function styleMarkers() {
+      Object.keys(markers).forEach(function (key) {
+        var sel = state.selected.has(key);
+        markers[key].setStyle(sel ? { color: colorOf(key), weight: 4, radius: 10 } : { color: "#fff", weight: 1.5, radius: 8 });
+        markers[key].setRadius(sel ? 10 : 8);
+        if (sel) markers[key].bringToFront();
+      });
+    }
+
+    // ---- Selection ----------------------------------------------------------
+    function toggle(key) {
+      if (state.selected.has(key)) state.selected.delete(key);
+      else { state.selected.add(key); state.focus = key; }
+      refresh();
+    }
+    function refresh() {
+      syncList(); styleMarkers(); drawContext(); drawMain(); drawLegend();
+      if ($("tab-details").classList.contains("active")) renderDetails();
+    }
+
+    // ---- Chart --------------------------------------------------------------
+    var MARGIN = { top: 10, right: 18, bottom: 34, left: 56 };
+    var lineGen = function (x, y) {
+      return d3.line().defined(function (d) { return d.v != null; })
+        .x(function (d) { return x(d.t); }).y(function (d) { return y(d.v); });
+    };
+    function selectedKeys() {
+      return state.wells.map(function (w) { return w.key; })
+        .filter(function (k) { return state.selected.has(k) && state.series[k]; });
+    }
+
+    function drawContext() {
+      var wrap = $("ctx-wrap"), svg = d3.select("#ctx");
+      var W = wrap.clientWidth, H = wrap.clientHeight;
+      svg.selectAll("*").remove();
+      if (W < 60 || H < 20) return;
+      svg.attr("width", W).attr("height", H);
+      var w = W - MARGIN.left - MARGIN.right;
+      var x = d3.scaleLinear().domain(state.xFull).range([0, w]);
+      var keys = selectedKeys(), lo = Infinity, hi = -Infinity;
+      keys.forEach(function (k) { state.series[k].pts.forEach(function (p) { if (p.v < lo) lo = p.v; if (p.v > hi) hi = p.v; }); });
+      var g = svg.append("g").attr("transform", "translate(" + MARGIN.left + ",0)");
+      g.append("rect").attr("width", w).attr("height", H - 4).attr("y", 2).attr("fill", "rgba(255,255,255,.04)");
+      if (lo <= hi) {
+        var y = d3.scaleLinear().domain([lo, hi]).range([H - 6, 6]);
+        keys.forEach(function (k) {
+          g.append("path").datum(state.series[k].line).attr("fill", "none").attr("stroke", colorOf(k))
+            .attr("stroke-width", 1).attr("opacity", 0.55).attr("d", lineGen(x, y));
+        });
+      }
+      var brush = d3.brushX().extent([[0, 2], [w, H - 2]]).on("brush end", function (ev) {
+        if (!ev.sourceEvent) return;
+        if (!ev.selection) { state.xDomain = null; }
+        else {
+          var a = x.invert(ev.selection[0]), b = x.invert(ev.selection[1]);
+          state.xDomain = (b - a) >= (state.xFull[1] - state.xFull[0]) * 0.995 ? null : [a, b];
+        }
+        drawMain();
+      });
+      var gb = g.append("g").attr("class", "brush").call(brush);
+      if (state.xDomain) gb.call(brush.move, [x(state.xDomain[0]), x(state.xDomain[1])]);
+    }
+
+    function drawMain() {
+      var wrap = $("chart-wrap"), svg = d3.select("#chart");
+      var W = wrap.clientWidth, H = wrap.clientHeight;
+      svg.selectAll("*").remove();
+      d3.select(wrap).selectAll(".empty").remove();
+      $("tip").style.display = "none";
+      if (W < 80 || H < 80) return;
+      svg.attr("width", W).attr("height", H);
+      var w = W - MARGIN.left - MARGIN.right, h = H - MARGIN.top - MARGIN.bottom;
+      var keys = selectedKeys(), dom = state.xDomain || state.xFull, lo = Infinity, hi = -Infinity;
+      keys.forEach(function (k) {
+        state.series[k].pts.forEach(function (p) { if (p.t >= dom[0] && p.t <= dom[1]) { if (p.v < lo) lo = p.v; if (p.v > hi) hi = p.v; } });
+      });
+      if (!(lo <= hi)) {
+        d3.select(wrap).append("div").attr("class", "empty")
+          .text(keys.length ? "No readings in this date range" : "Select one or more wells to plot");
+        return;
+      }
+      var pad = (hi - lo) * 0.08 || 0.5;
+      var x = d3.scaleTime().domain([new Date(dom[0]), new Date(dom[1])]).range([0, w]);
+      var y = d3.scaleLinear().domain([lo - pad, hi + pad]).nice().range([h, 0]);
+      var g = svg.append("g").attr("transform", "translate(" + MARGIN.left + "," + MARGIN.top + ")");
+      g.append("g").attr("class", "grid").call(d3.axisLeft(y).ticks(8).tickSize(-w).tickFormat(""));
+      g.append("g").attr("class", "axis").attr("transform", "translate(0," + h + ")")
+        .call(d3.axisBottom(x).ticks(Math.max(2, Math.floor(w / 110))));
+      g.append("g").attr("class", "axis").call(d3.axisLeft(y).ticks(8));
+      svg.append("text").attr("class", "ylabel").attr("transform", "rotate(-90)")
+        .attr("x", -(MARGIN.top + h / 2)).attr("y", 14).attr("text-anchor", "middle").text(CONFIG.yLabel);
+      svg.append("defs").append("clipPath").attr("id", "clip").append("rect").attr("width", w).attr("height", h);
+      // Points carry numeric times, so wrap them for the time scale.
+      var gen2 = d3.line().defined(function (d) { return d.v != null; })
+        .x(function (d) { return x(new Date(d.t)); }).y(function (d) { return y(d.v); });
+      keys.forEach(function (k) {
+        g.append("path").datum(state.series[k].line).attr("clip-path", "url(#clip)").attr("fill", "none")
+          .attr("stroke", colorOf(k)).attr("stroke-width", 1.6).attr("stroke-linejoin", "round").attr("d", gen2);
+      });
+
+      var vline = g.append("line").attr("y1", 0).attr("y2", h).attr("stroke", "rgba(255,255,255,.55)").style("display", "none");
+      var bis = d3.bisector(function (p) { return p.t; }).center, tip = $("tip");
+      g.append("rect").attr("width", w).attr("height", h).attr("fill", "transparent")
+        .on("mousemove", function (ev) {
+          var mx = d3.pointer(ev, this)[0], t = x.invert(mx).getTime(), rows = "";
+          keys.forEach(function (k) {
+            var pts = state.series[k].pts, i = bis(pts, t), p = pts[i];
+            if (p && Math.abs(p.t - t) <= 2 * 86400000) {
+              rows += '<div><span style="color:' + colorOf(k) + '">&#9679;</span> ' + state.byKey[k].name + ': ' + p.v.toFixed(2) + ' ft</div>';
+            }
+          });
+          vline.attr("x1", mx).attr("x2", mx).style("display", null);
+          if (!rows) { tip.style.display = "none"; return; }
+          tip.innerHTML = '<div class="d">' + fmtDate(new Date(t)) + '</div>' + rows;
+          tip.style.display = "block";
+          var left = mx + MARGIN.left + 14;
+          if (left + tip.offsetWidth > W - 6) left = mx + MARGIN.left - tip.offsetWidth - 14;
+          tip.style.left = Math.max(4, left) + "px";
+          tip.style.top = (MARGIN.top + 8) + "px";
+        })
+        .on("mouseleave", function () { vline.style("display", "none"); tip.style.display = "none"; })
+        .on("dblclick", function () { state.xDomain = null; drawContext(); drawMain(); });
+    }
+
+    function drawLegend() {
+      var box = $("legend");
+      box.innerHTML = "";
+      selectedKeys().forEach(function (k) {
+        var s = document.createElement("span");
+        s.innerHTML = '<i style="background:' + colorOf(k) + '"></i>' + state.byKey[k].name;
+        box.appendChild(s);
+      });
+    }
+
+    function setRange(which) {
+      if (which === "all") state.xDomain = null;
+      else {
+        var end = state.xFull[1], start = Math.max(state.xFull[0], end - (+which) * 86400000);
+        state.xDomain = [start, end];
+      }
+      drawContext(); drawMain();
+    }
+
+    // ---- Well Details and 360 photo ------------------------------------------
+    function loadSiteIndex() {
+      if (!siteIndexPromise) {
+        siteIndexPromise = fetch(CONFIG.toursBase + "tiles/_index.json", { cache: "no-store" })
+          .then(function (r) { return r.ok ? r.json() : []; }).catch(function () { return []; });
+      }
+      return siteIndexPromise;
+    }
+    // Newest published 360 site for a well: IDs start with the well key
+    // (well01_20260924 or well01_img_20260924_...), newest date in the ID wins.
+    function findPhotoSite(key) {
+      var target = CONFIG.photoOverrides[key] || key;
+      return loadSiteIndex().then(function (idx) {
+        var hits = (Array.isArray(idx) ? idx : []).filter(function (e) {
+          var id = String(e.site_id || "").toLowerCase();
+          return id === target || id.indexOf(target + "_") === 0;
+        });
+        function dateOf(e) { var m = /_(20\d{6})/.exec(e.site_id); return m ? +m[1] : 0; }
+        hits.sort(function (a, b) { return dateOf(b) - dateOf(a) || String(b.updated || "").localeCompare(String(a.updated || "")); });
+        return hits[0] ? hits[0].site_id : null;
+      });
+    }
+
+    function renderDetails() {
+      var box = $("tab-details");
+      var key = state.focus || selectedKeys()[0] || (state.wells[0] && state.wells[0].key);
+      var w = state.byKey[key];
+      if (!w) { box.innerHTML = '<div class="note">Select a well.</div>'; return; }
+      var s = state.series[key], pts = s ? s.pts : [], lo = null, hi = null;
+      pts.forEach(function (p) { if (lo == null || p.v < lo) lo = p.v; if (hi == null || p.v > hi) hi = p.v; });
+      var rows = [
+        ["Logger", w.logger || "n/a"],
+        ["Latest reading", w.lastWse == null ? "n/a" : fmt(w.lastWse) + " ft" + (w.lastDate ? " on " + fmtDate(new Date(w.lastDate)) : "")],
+        ["Period of record", pts.length ? fmtDate(new Date(pts[0].t)) + " to " + fmtDate(new Date(pts[pts.length - 1].t)) : "n/a"],
+        ["Range (daily mean)", lo == null ? "n/a" : fmt(lo) + " to " + fmt(hi) + " ft"],
+        ["Top of PVC", w.pvc == null ? "n/a" : fmt(w.pvc) + " ft"],
+        ["Ground elevation", w.ground == null ? "n/a" : fmt(w.ground) + " ft"]
+      ].map(function (r) { return "<tr><td>" + r[0] + "</td><td>" + r[1] + "</td></tr>"; }).join("");
+      box.innerHTML = "<h2>" + w.name + "</h2><table>" + rows + '</table><div id="photo-wrap"><div class="note">Looking for the 360 photo...</div></div>';
+
+      var token = ++detailToken;
+      findPhotoSite(key).then(function (siteId) {
+        if (token !== detailToken) return;
+        var wrap = $("photo-wrap");
+        if (!wrap) return;
+        if (!siteId) { wrap.innerHTML = '<div class="note">No 360 photo has been published for this well yet.</div>'; return; }
+        var url = CONFIG.toursBase + "index.html?site=" + encodeURIComponent(siteId);
+        wrap.innerHTML = '<iframe src="' + url + '" allowfullscreen loading="lazy" title="360 photo of ' + w.name + '"></iframe>' +
+          '<div class="note"><a href="' + url + '" target="_blank" rel="noopener">Open the 360 photo full screen</a> &middot; ' +
+          '<a href="' + CONFIG.toursBase + 'tours.html" target="_blank" rel="noopener">All tours</a></div>';
+      });
+    }
+
+    // ---- Tabs and wiring --------------------------------------------------------
+    function switchTab(name) {
+      Array.prototype.forEach.call(document.querySelectorAll(".tabs button"), function (b) {
+        b.classList.toggle("active", b.dataset.tab === name);
+      });
+      $("tab-ts").classList.toggle("active", name === "ts");
+      $("tab-details").classList.toggle("active", name === "details");
+      if (name === "ts") { drawContext(); drawMain(); } else { renderDetails(); }
+    }
+
+    function start(wRes, sRes) {
+      buildData(wRes, sRes);
+      $("title").textContent = CONFIG.title;
+      document.title = CONFIG.title;
+      if (CONFIG.sampleData) $("badge").style.display = "";
+      if (state.xFull[1] > 1) $("asof").textContent = "Data through " + fmtDate(new Date(state.xFull[1]));
+      if (!state.wells.length) throw new Error("No wells found in the wells file.");
+      renderList();
+      buildMap();
+      state.wells.filter(function (w) { return state.series[w.key]; }).slice(0, CONFIG.defaultSelected)
+        .forEach(function (w) { state.selected.add(w.key); });
+      state.focus = selectedKeys()[0] || state.wells[0].key;
+
+      document.querySelectorAll(".tabs button").forEach(function (b) { b.addEventListener("click", function () { switchTab(b.dataset.tab); }); });
+      document.querySelectorAll(".toolbar button").forEach(function (b) { b.addEventListener("click", function () { setRange(b.dataset.range); }); });
+      $("sel-all").addEventListener("click", function () {
+        state.wells.forEach(function (w) { if (state.series[w.key]) state.selected.add(w.key); }); refresh();
+      });
+      $("sel-none").addEventListener("click", function () { state.selected.clear(); refresh(); });
+
+      var pending = false;
+      function relayout() {
+        if (pending) return;
+        pending = true;
+        requestAnimationFrame(function () {
+          pending = false;
+          map.invalidateSize();
+          if ($("tab-ts").classList.contains("active")) { drawContext(); drawMain(); }
+        });
+      }
+      if (window.ResizeObserver) new ResizeObserver(relayout).observe(document.querySelector("main"));
+      window.addEventListener("resize", relayout);
+      refresh();
+    }
+
+    Promise.all([loadCsv(CONFIG.wellsCsv), loadCsv(CONFIG.seriesCsv)])
+      .then(function (r) { start(r[0], r[1]); })
+      .catch(function (e) { console.error(e); showError(String(e.message || e)); });
+  })();
+  </script>
+</body>
+</html>

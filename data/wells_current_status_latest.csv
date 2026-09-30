@@ -1,0 +1,15 @@
+well_id,logger,status,latitude,longitude,last_reading_date,last_wse_ft,top_pvc_elevation_ft,ground_elevation_ft
+Well-01,Solinst LevelLogger 5,Active,47.233966,-122.391294,2026-09-24,9.68,12.78,10.08
+Well-02,Solinst LTC5,Active,47.230578,-122.388402,2026-09-24,9.18,12.48,9.78
+Well-03,Solinst LevelLogger 5,Active,47.232434,-122.386829,2026-09-24,9.44,12.94,10.24
+Well-06,Solinst LevelLogger 5,Active,47.221844,-122.378909,2026-09-24,9.23,12.33,9.63
+Well-08,Solinst LevelLogger 5,Active,47.224836,-122.368992,2026-09-24,9.25,12.55,9.85
+Well-09,Solinst LevelLogger 5,Active,47.220128,-122.375127,2026-09-24,12.19,15.69,12.99
+Well-10,Solinst LevelLogger 5,Active,47.216191,-122.367506,2026-09-24,12.35,15.45,12.75
+Well-11,Solinst LevelLogger 5,Active,47.2183,-122.365774,2026-09-24,12.13,15.43,12.73
+Well-12,Solinst LevelLogger 5,Active,47.214737,-122.365344,2026-09-24,12.0,15.5,12.8
+Well-14,Solinst LevelLogger 5,Active,47.217243,-122.359496,2026-09-24,12.11,15.21,12.51
+Well-16,Solinst LevelLogger 5,Active,47.221914,-122.371966,2026-09-24,9.74,13.04,10.34
+Well-17,Solinst LevelLogger 5,Active,47.220579,-122.361609,2026-09-24,9.46,12.96,10.26
+Well-19,Solinst LevelLogger 5,Active,47.229098,-122.384495,2026-09-24,9.35,12.45,9.75
+Well-20,Solinst LTC5,Active,47.23073,-122.38825,2026-09-24,9.21,12.51,9.81
