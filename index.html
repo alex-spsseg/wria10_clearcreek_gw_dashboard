@@ -581,13 +581,16 @@
       state.selected.clear();
       (CONFIG.rtkPresetWells || []).forEach(function (k) { if (state.series[k]) state.selected.add(k); });
       if (state.byKey[CONFIG.ditchKey]) state.selected.add(CONFIG.ditchKey);
-      state.focus = selectedKeys()[0] || state.focus;
+      // With the Well Details tab open, the preset shows the ditch; otherwise focus the first selected well.
+      state.focus = $("tab-details").classList.contains("active") ? CONFIG.ditchKey : (selectedKeys()[0] || state.focus);
       refresh();
     }
     function toggle(key) {
       if (key === CONFIG.ditchKey && !state.selected.has(key)) { ditchPreset(); return; }
       if (state.selected.has(key)) state.selected.delete(key);
       else { state.selected.add(key); state.focus = key; }
+      // With Well Details open, whatever you click in the list or on the map is what the tab shows.
+      if ($("tab-details").classList.contains("active")) state.focus = key;
       refresh();
     }
     function refresh() {
