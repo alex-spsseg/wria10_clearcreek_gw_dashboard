@@ -144,7 +144,8 @@
     var CONFIG = {
       title: "SPSSEG Clear Creek Groundwater Well Monitoring (2022-2026)",
       wellsCsv: "data/wells_current_status_latest.csv",
-      seriesCsv: "data/wse_daily_timeseries_latest.csv",
+      // To use 6 hour data, export it with export_interval_wse.R and change this to "data/wse_6h_timeseries_latest.csv".
+      seriesCsv: "data/wse_3h_timeseries_latest.csv",
       // Nancy's Ditch RTK water surface snapshots (one row per visit: date, wse_ft, source).
       // Optional: if the file is missing the chart simply shows no ditch markers.
       ditchCsv: "data/nancys_ditch_rtk.csv",
@@ -247,8 +248,8 @@
     function num(s) { var n = parseFloat(s); return isFinite(n) ? n : null; }
     function parseDate(s) {
       if (!s) return null;
-      var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s).trim());
-      if (m) return new Date(+m[1], +m[2] - 1, +m[3]).getTime();
+      var m = /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}))?/.exec(String(s).trim());
+      if (m) return new Date(+m[1], +m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0)).getTime();
       var t = new Date(s).getTime();
       return isFinite(t) ? t : null;
     }
@@ -265,6 +266,7 @@
     function showError(msg) { var e = $("error"); e.style.display = "block"; e.textContent = msg; }
     function fmt(v, d) { return v == null ? "n/a" : v.toFixed(d == null ? 2 : d); }
     var fmtDate = d3.timeFormat("%b %d, %Y");
+    var fmtDateTime = d3.timeFormat("%b %d, %Y %H:%M");
 
     // ---- State --------------------------------------------------------------
     var state = { wells: [], byKey: {}, series: {}, ditch: [], channel: {}, selected: new Set(), focus: null, xFull: [0, 1], xDomain: null };
@@ -312,6 +314,9 @@
       sRes.data.forEach(function (r) {
         var key = keyOf(r[sc.id]), t = parseDate(r[sc.date]), v = num(r[sc.wse]);
         if (!key || t == null || v == null) return;
+        // Safety net: a level above the top of the well casing is not physically possible, so drop it.
+        var wk = byKey[key];
+        if (wk && wk.pvc != null && v > wk.pvc + 0.5) return;
         var n = sc.n ? num(r[sc.n]) : null;
         (raw[key] = raw[key] || []).push({ t: t, v: v, n: n && n > 0 ? n : 1 });
       });
@@ -354,6 +359,10 @@
         }
       });
       state.wells = wells; state.byKey = byKey; state.series = series;
+      // Sub daily data (for example 6 hour blocks) shows the time in the tooltip.
+      state.subDaily = Object.keys(series).some(function (k) {
+        return series[k].pts.some(function (p) { var d = new Date(p.t); return d.getHours() || d.getMinutes(); });
+      });
       state.xFull = isFinite(tMin) ? [tMin, tMax] : [0, 1];
     }
 
@@ -489,6 +498,8 @@
         pts.push([w.lat, w.lon]);
       });
       if (pts.length) map.fitBounds(L.latLngBounds(pts).pad(0.2)); else map.setView([47.22, -122.38], 13);
+      map.on("zoomend moveend", placeLabels);
+      placeLabels();
     }
     var autoFit = true;
     function fitToSelection() {
@@ -504,6 +515,52 @@
       if (pts.length === 1) map.setView(pts[0], Math.max(map.getZoom(), 16));
       else map.fitBounds(L.latLngBounds(pts), { padding: [45, 45], maxZoom: 17 });
     }
+    // Label placement: for each marker try top, right, bottom, left and keep the first spot that does not
+    // cover another label or another dot. Selected wells place first. Unselected labels that fit nowhere are hidden.
+    var LABEL_SPOTS = { top: [0, -8], right: [10, 0], bottom: [0, 8], left: [-10, 0] };
+    function placeLabels() {
+      if (!map) return;
+      var sz = map.getSize(), items = [];
+      Object.keys(markers).forEach(function (k) {
+        var p = map.latLngToContainerPoint(markers[k].getLatLng());
+        if (p.x < -60 || p.y < -30 || p.x > sz.x + 60 || p.y > sz.y + 30) return;
+        items.push({ k: k, p: p, name: state.byKey[k].name, sel: state.selected.has(k) });
+      });
+      items.sort(function (a, b) { return (b.sel - a.sel) || a.name.localeCompare(b.name, undefined, { numeric: true }); });
+      function hit(a, b) { return a.x1 < b.x2 && a.x2 > b.x1 && a.y1 < b.y2 && a.y2 > b.y1; }
+      var dots = items.map(function (it) { return { x1: it.p.x - 7, y1: it.p.y - 7, x2: it.p.x + 7, y2: it.p.y + 7 }; });
+      var placed = [];
+      items.forEach(function (it, i) {
+        var w = it.name.length * 7.2 + 8, h = 16, x = it.p.x, y = it.p.y;
+        var boxes = {
+          top: { x1: x - w / 2, y1: y - 8 - h, x2: x + w / 2, y2: y - 8 },
+          right: { x1: x + 10, y1: y - h / 2, x2: x + 10 + w, y2: y + h / 2 },
+          bottom: { x1: x - w / 2, y1: y + 8, x2: x + w / 2, y2: y + 8 + h },
+          left: { x1: x - 10 - w, y1: y - h / 2, x2: x - 10, y2: y + h / 2 }
+        };
+        var dir = null;
+        ["top", "right", "bottom", "left"].some(function (d) {
+          var b = boxes[d];
+          var clash = placed.some(function (q) { return hit(b, q); }) ||
+                      dots.some(function (q, j) { return j !== i && hit(b, q); });
+          if (!clash) { dir = d; return true; }
+          return false;
+        });
+        if (!dir && it.sel) dir = "top";          // selected wells always keep a label
+        if (dir) placed.push(boxes[dir]);
+        var m = markers[it.k], state2 = dir || "hidden";
+        if (m._labelState === state2) return;
+        m._labelState = state2;
+        m.unbindTooltip();
+        m.bindTooltip(it.name, { permanent: true, direction: dir || "top", offset: LABEL_SPOTS[dir || "top"],
+                                 className: "well-label", opacity: dir ? 0.9 : 0 });
+      });
+      // Markers scrolled out of view keep their last state; reset so they place again when they return.
+      Object.keys(markers).forEach(function (k) {
+        if (!items.some(function (it) { return it.k === k; })) markers[k]._labelState = null;
+      });
+    }
+
     function styleMarkers() {
       Object.keys(markers).forEach(function (key) {
         var sel = state.selected.has(key);
@@ -534,7 +591,7 @@
       refresh();
     }
     function refresh() {
-      syncList(); styleMarkers(); fitToSelection(); drawContext(); drawMain(); drawLegend();
+      syncList(); styleMarkers(); placeLabels(); fitToSelection(); drawContext(); drawMain(); drawLegend();
       if ($("tab-details").classList.contains("active")) renderDetails();
     }
 
@@ -668,7 +725,7 @@
           }
           vline.attr("x1", mx).attr("x2", mx).style("display", null);
           if (!rows) { tip.style.display = "none"; return; }
-          tip.innerHTML = '<div class="d">' + fmtDate(new Date(t)) + '</div>' + rows;
+          tip.innerHTML = '<div class="d">' + (state.subDaily ? fmtDateTime : fmtDate)(new Date(t)) + '</div>' + rows;
           tip.style.display = "block";
           var left = mx + MARGIN.left + 14;
           if (left + tip.offsetWidth > W - 6) left = mx + MARGIN.left - tip.offsetWidth - 14;
@@ -750,27 +807,18 @@
           '<a href="' + CONFIG.toursBase + 'tours.html" target="_blank" rel="noopener">All tours</a></div>';
       });
     }
+    // Well value for a visit date: the mean of all points on that calendar day (works for daily and sub daily data).
     function wellValueOn(key, t) {
-      var sr = state.series[key], best = null;
+      var sr = state.series[key];
       if (!sr) return null;
+      function dayKey(ms) { var d = new Date(ms); return d.getFullYear() * 10000 + d.getMonth() * 100 + d.getDate(); }
+      var k = dayKey(t), sum = 0, n = 0, best = null;
       sr.pts.forEach(function (p) {
+        if (dayKey(p.t) === k) { sum += p.v; n++; }
         var dt = Math.abs(p.t - t);
         if (dt <= 86400000 && (best == null || dt < best.dt)) best = { dt: dt, v: p.v };
       });
-      return best ? best.v : null;
-    }
-    // Open channel RTK vs groundwater for one well: same visit dates, difference = groundwater minus surface water.
-    function channelTableHtml(key) {
-      var cp = state.channel[key];
-      if (!cp || !cp.length) return "";
-      var body = cp.slice().reverse().map(function (p) {
-        var v = wellValueOn(key, p.t), df = v == null ? null : v - p.v;
-        return "<tr><td>" + fmtDate(new Date(p.t)) + "</td><td>" + fmt(p.v) + "</td><td>" + (v == null ? "n/a" : fmt(v)) +
-               "</td><td>" + (df == null ? "n/a" : (df > 0 ? "+" : "") + fmt(df)) + "</td></tr>";
-      }).join("");
-      return "<h3>Open channel RTK vs groundwater (ft)</h3>" +
-        '<div class="hd-scroll"><table class="hd"><tr><th>Visit</th><th>Open channel (RTK)</th><th>Groundwater</th><th>Head diff</th></tr>' + body + "</table></div>" +
-        '<div class="note">Head diff = groundwater minus open channel. Positive means groundwater is higher.</div>';
+      return n ? sum / n : (best ? best.v : null);
     }
     function renderDitchDetails(w, box) {
       var d = state.ditch, last = d[d.length - 1];
