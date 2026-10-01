@@ -144,7 +144,8 @@
     var CONFIG = {
       title: "SPSSEG Clear Creek Groundwater Well Monitoring (2022-2026)",
       wellsCsv: "data/wells_current_status_latest.csv",
-      // To use 6 hour data, export it with export_interval_wse.R and change this to "data/wse_6h_timeseries_latest.csv".
+      // 3 hour means, made by export_interval_wse.R (interval_hours = 3). For daily data use
+      // "data/wse_daily_timeseries_latest.csv" (interval_hours = 24).
       seriesCsv: "data/wse_3h_timeseries_latest.csv",
       // Nancy's Ditch RTK water surface snapshots (one row per visit: date, wse_ft, source).
       // Optional: if the file is missing the chart simply shows no ditch markers.
@@ -707,25 +708,32 @@
       g.append("rect").attr("width", w).attr("height", h).attr("fill", "transparent")
         .on("mousemove", function (ev) {
           var mx = d3.pointer(ev, this)[0], t = x.invert(mx).getTime(), rows = "";
+          // Collect rows, then list each group from the highest elevation to the lowest.
+          var gw = [], sw = [];
           keys.forEach(function (k) {
             var pts = state.series[k].pts, i = bis(pts, t), p = pts[i];
             if (p && Math.abs(p.t - t) <= 2 * 86400000) {
-              rows += '<div><span style="color:' + colorOf(k) + '">&#9679;</span> ' + state.byKey[k].name + ' groundwater: ' + p.v.toFixed(2) + ' ft</div>';
+              gw.push({ v: p.v, html: '<div><span style="color:' + colorOf(k) + '">&#9679;</span> ' + state.byKey[k].name + ': ' + p.v.toFixed(2) + ' ft</div>' });
             }
             var cp = state.channel[k];
             if (cp && cp.length) {
               var c = cp[d3.bisector(function (q) { return q.t; }).center(cp, t)];
               if (c && Math.abs(c.t - t) <= 2 * 86400000) {
-                rows += '<div><span style="color:' + colorOf(k) + '; font-size:14px">&#9670;</span> ' + state.byKey[k].name + ' open channel (RTK): ' + c.v.toFixed(2) + ' ft</div>';
+                sw.push({ v: c.v, html: '<div><span style="color:' + colorOf(k) + '; font-size:14px">&#9670;</span> ' + state.byKey[k].name + ' open channel: ' + c.v.toFixed(2) + ' ft</div>' });
               }
             }
           });
           if (keys.length && state.ditch.length) {
             var dp = state.ditch[d3.bisector(function (p) { return p.t; }).center(state.ditch, t)];
             if (dp && Math.abs(dp.t - t) <= 2 * 86400000) {
-              rows += '<div><span style="color:' + CONFIG.ditchColor + '; font-size:15px">&#9670;</span> ' + CONFIG.ditchLabel + ' surface water: ' + dp.v.toFixed(2) + ' ft</div>';
+              sw.push({ v: dp.v, html: '<div><span style="color:' + CONFIG.ditchColor + '; font-size:15px">&#9670;</span> ' + CONFIG.ditchLabel.replace(" (RTK)", "") + ': ' + dp.v.toFixed(2) + ' ft</div>' });
             }
           }
+          function byHeight(a, b) { return b.v - a.v; }
+          function join(list) { return list.sort(byHeight).map(function (r) { return r.html; }).join(""); }
+          var head = function (txt) { return '<div style="color:var(--dim); font-size:11px; margin-top:4px">' + txt + '</div>'; };
+          if (gw.length && sw.length) rows = head("Groundwater logger") + join(gw) + head("Surface water, RTK") + join(sw);
+          else rows = join(gw) + join(sw);
           vline.attr("x1", mx).attr("x2", mx).style("display", null);
           if (!rows) { tip.style.display = "none"; return; }
           tip.innerHTML = '<div class="d">' + (state.subDaily ? fmtDateTime : fmtDate)(new Date(t)) + '</div>' + rows;
@@ -918,7 +926,7 @@
       if (CONFIG.sampleData) $("badge").style.display = "";
       if (state.xFull[1] > 1) $("asof").textContent = "Data through " + fmtDate(new Date(state.xFull[1]));
       // Hover the "Data through" text (or check the browser console) to see which copy of the page is loaded.
-      var BUILD = "2026-09-30 details fix";
+      var BUILD = "2026-10-01 3h default";
       $("asof").title = "Dashboard build: " + BUILD;
       console.log("Dashboard build: " + BUILD);
       if (!state.wells.length) throw new Error("No wells found in the wells file.");
